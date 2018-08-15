@@ -1,0 +1,183 @@
+---
+title: "Practical Machine learning Course Assignment"
+author: "Aditya Sharma"
+date: "August 11, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+```{r }
+library(knitr)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(corrplot)
+library(randomForest)
+```
+### Data Loading and Cleaning 
+We will load the data from the above mentioned URI . We will also remove NA's present in the data set .
+```{r }
+
+train_data <- read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),na.strings = c("NA", ""))
+test_data <-  read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),na.strings = c("NA", ""))
+
+
+```
+ Training set will be partitioned in 70% and 30% as recommended in the course to test the algorithm .
+
+
+```{r }
+set.seed(12345)
+
+inTrain <- createDataPartition(train_data$classe, p=0.7, list=FALSE)
+Train_set <- train_data[inTrain , ]
+Test_set <- train_data[-inTrain, ]
+
+dim(Train_set)
+
+dim(Test_set)
+
+```
+
+Now check for nearzero vriance for any predictor
+ 
+```{r }
+
+nearZVar <- nearZeroVar(Train_set)
+Train_set <- Train_set[,-nearZVar]
+nearZVar <- nearZeroVar(Test_set)
+Test_set <- Test_set[,-nearZVar]
+nearZVar <- nearZeroVar(test_data)
+Test_set_final <- test_data[,-nearZVar]
+dim(Train_set)
+dim(Test_set)
+
+```
+
+We will now remove NA's present in the data . We will first calculate the NA's per column , Then keep only Non-NA's .
+We will also remove starting columns , as they are user details and have raw times .
+```{r }
+
+Train_set <- Train_set[,colSums(is.na(Train_set)) == 0] 
+Train_set <- Train_set[,-(1:5)]
+dim(Train_set)
+
+Test_set <- Test_set[,colSums(is.na(Test_set)) == 0] 
+Test_set <- Test_set[,-(1:5)]
+dim(Test_set)
+
+Test_set_final <- Test_set_final[,colSums(is.na(Test_set_final)) == 0] 
+Test_set_final <- Test_set_final[,-(1:5)]
+
+```
+
+### Correlation Analysis
+
+We will plot correlation between our predictors .
+
+```{r }
+
+mat <- cor(Train_set[,-54])
+corrplot(mat, order="AOE",method = "color", tl.cex = 0.8, 
+    tl.col = rgb(0, 0, 0))
+
+```
+
+The predictors which have dark color will will be highly correlated .
+
+## Prediction Modelling 
+
+### Decision Tree Model
+
+```{r}
+
+decisionModel <- rpart(classe ~ ., data=Train_set, method="class",control = rpart.control(method = "cv", number = 8) )
+fancyRpartPlot(decisionModel,main="Decision Tree Model" , sub="" )
+
+``` 
+
+Now we will predict the outcome on test data set .It will be the Cross-validation with the test data we prepared from our training set .     
+
+```{r }
+library("e1071")
+predictOnDecisionT <- predict(decisionModel, newdata=Test_set, type="class")
+confDecisionT <- confusionMatrix(predictOnDecisionT, Test_set$classe)
+confDecisionT
+
+```
+
+As we can see the accuracy from this model is .7368
+
+Now calculate out-of-sample error for this model 
+
+```{r }
+outOfSampleErr <- 1 - 0.7368
+outOfSampleErr
+
+
+```
+
+###  Random Forest
+
+```{r }
+randaomFModel <- randomForest(classe ~. , data=Train_set)
+
+
+```
+
+Now we will predict the outcome on test data set .It will be the Cross-validation with the test data we prepared from our training set .
+```{r }
+predictRandomF <- predict(randaomFModel, newdata=Test_set, type="class")
+confRandomF <- confusionMatrix(predictRandomF, Test_set$classe)
+confRandomF
+
+```
+
+The overall accuracy with this model is 0.9947
+
+Now calculate out-of-sample error for this model 
+
+```{r }
+
+outOfSampleErr <- 1 - 0.9947
+outOfSampleErr
+
+```
+
+
+### Predicting Model on Test Data 
+
+We used to prediction models and below are the accuracy on Test set 
+1) Decision Tree - Accuracy -> 0.7368
+2) Random Forest - Accuracy -> 0.9947
+
+Lets use prediction model Random Forest on Test Data  .
+```{r }
+
+predictTEST <- predict(randaomFModel, newdata=Test_set_final)
+predictTEST
+
+```
+
+
+
